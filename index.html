@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cadence</title>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="brand">
+        <div class="logo">C</div>
+        <h1>Cadence</h1>
+      </div>
+      <div class="now-playing">
+        <span class="label" id="npLabel">No song loaded</span>
+        <span class="title" id="npTitle">Upload an audio file to begin</span>
+      </div>
+      <div class="segmented" id="viewToggle" hidden>
+        <button data-view="grid" class="sel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          <span>Sheet</span>
+        </button>
+        <button data-view="karaoke">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/><path d="M3 12h6M15 12h6"/></svg>
+          <span>Karaoke</span>
+        </button>
+      </div>
+      <button class="hbtn" id="uploadBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5M5 21h14"/></svg>
+        <span>Open song</span>
+      </button>
+      <button class="hbtn icon" id="themeBtn" title="Toggle theme" aria-label="Toggle theme">
+        <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+      <input type="file" id="fileInput" accept="audio/*" hidden />
+    </header>
+
+    <!-- empty / drop state -->
+    <div class="stage" id="dropzone">
+      <div class="drop-inner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 21h14"/></svg>
+        <p class="drop-title">Drop a song here</p>
+        <p class="drop-sub">or click <strong>Open song</strong> · MP3, WAV, M4A · analysed on your device, never uploaded</p>
+      </div>
+    </div>
+
+    <!-- processing state -->
+    <div class="stage" id="processing" hidden>
+      <div class="proc-inner">
+        <div class="proc-bar"><div class="proc-fill" id="procFill"></div></div>
+        <p class="proc-label" id="procLabel">Analysing chords…</p>
+      </div>
+    </div>
+
+    <!-- sheet view -->
+    <div class="sheet" id="sheet" hidden></div>
+
+    <!-- karaoke view -->
+    <div class="karaoke" id="karaoke" hidden>
+      <div class="ksection" id="ksection"></div>
+      <div class="klane-wrap">
+        <div class="playhead"></div>
+        <div class="klane" id="klane"></div>
+      </div>
+      <div class="kbeats"><i></i><i></i><i></i><i></i></div>
+    </div>
+
+    <!-- transport -->
+    <div class="transport" id="transport" hidden>
+      <div class="scrub-row">
+        <span id="curTime">0:00</span>
+        <div class="scrub" id="scrub">
+          <div class="loopband" id="loopband"></div>
+          <div class="fill" id="fill"></div>
+          <div class="head" id="scrubHead"></div>
+        </div>
+        <span id="totTime">0:00</span>
+      </div>
+      <div class="controls">
+        <button class="tbtn" id="rewBtn" title="Rewind" aria-label="Rewind">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 6v12L2.5 12 11 6zm10.5 0v12L13 12l8.5-6z"/></svg>
+        </button>
+        <button class="tbtn play" id="playBtn" title="Play / pause" aria-label="Play or pause">
+          <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7L8 5z"/></svg>
+        </button>
+        <button class="tbtn" id="fwdBtn" title="Forward" aria-label="Forward">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 6v12l8.5-6L13 6zM2.5 6v12L11 12 2.5 6z"/></svg>
+        </button>
+        <button class="tbtn" id="loopBtn" title="Loop section" aria-label="Loop section">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
+        </button>
+
+        <div class="spacer"></div>
+
+        <div class="stepper" title="Transpose the chart">
+          <span class="lbl">Pitch</span>
+          <button id="pitchDown" aria-label="Transpose down">&minus;</button>
+          <span class="val zero" id="pitchVal">0</span>
+          <button id="pitchUp" aria-label="Transpose up">+</button>
+        </div>
+        <div class="slider-group" title="Tempo">
+          <span class="lbl">Tempo</span>
+          <input type="range" id="tempo" min="50" max="150" value="100" step="5" aria-label="Tempo" />
+          <span class="val" id="tempoVal">100%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="hint" id="hint" hidden><kbd>space</kbd> play/pause · click a chord to jump · <kbd>L</kbd> loop</div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

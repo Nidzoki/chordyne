@@ -1,0 +1,19 @@
+{
+  "name": "cadence",
+  "version": "0.1.0",
+  "description": "Offline chord-karaoke practice app — upload a song, get a chord chart and karaoke lane, transpose and slow down.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test:chords": "node scripts/test-chords.mjs",
+    "test:essentia": "node scripts/test-essentia.mjs"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  },
+  "dependencies": {
+    "essentia.js": "^0.1.3"
+  }
+}
