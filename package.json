@@ -1,5 +1,5 @@
 {
-  "name": "cadence",
+  "name": "chordyne",
   "version": "0.1.0",
   "description": "Offline chord-karaoke practice app — upload a song, get a chord chart and karaoke lane, transpose and slow down.",
   "type": "module",

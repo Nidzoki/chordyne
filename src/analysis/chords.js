@@ -547,9 +547,9 @@ export async function detectChords(audioBuffer, onProgress, _trace) {
   let essentiaExtractor = null;
   try {
     essentiaExtractor = await loadEssentiaExtractor();
-    console.log("Cadence: using essentia.js for chroma extraction");
+    console.log("Chordyne: using essentia.js for chroma extraction");
   } catch (err) {
-    console.warn("Cadence: essentia.js failed to load, using built-in chroma extraction instead.", err);
+    console.warn("Chordyne: essentia.js failed to load, using built-in chroma extraction instead.", err);
   }
 
   // Beat tracking: chords overwhelmingly change on the beat, not at whatever
@@ -583,12 +583,12 @@ export async function detectChords(audioBuffer, onProgress, _trace) {
       for (let i = 0; i < rhythm.ticks.size(); i++) ticks.push(rhythm.ticks.get(i));
       if (ticks.length >= 4) {
         beatTicks = ticks;
-        console.log(`Cadence: beat-synchronous mode, ${bpm} BPM, ${ticks.length} beats`);
+        console.log(`Chordyne: beat-synchronous mode, ${bpm} BPM, ${ticks.length} beats`);
       } else {
-        console.log("Cadence: too few beats detected, using frame-level chord boundaries");
+        console.log("Chordyne: too few beats detected, using frame-level chord boundaries");
       }
     } catch (err) {
-      console.warn("Cadence: beat tracking failed, using frame-level chord boundaries instead.", err);
+      console.warn("Chordyne: beat tracking failed, using frame-level chord boundaries instead.", err);
     }
   }
   if (onProgress) onProgress(0.05, "Extracting chroma…");

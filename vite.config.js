@@ -1,10 +1,10 @@
 import { defineConfig } from "vite";
 
 // base must match the GitHub Pages repo name for project-pages deploys,
-// e.g. https://<user>.github.io/cadence/  -> base: "/cadence/".
+// e.g. https://<user>.github.io/chordyne/  -> base: "/chordyne/".
 // Override at build time: BASE=/myrepo/ npm run build
 export default defineConfig({
-  base: process.env.BASE || "/cadence/",
+  base: process.env.BASE || "/chordyne/",
   build: {
     target: "es2020",
     outDir: "dist",

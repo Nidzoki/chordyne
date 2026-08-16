@@ -251,20 +251,20 @@ async function loadFile(file) {
 
   // debug aid: dump the detected timeline to the console so it can be
   // copy-pasted for diagnosis instead of describing it by hand
-  console.log(`Cadence: detected ${song.segments.length} chord segments for "${song.name}"`);
+  console.log(`Chordyne: detected ${song.segments.length} chord segments for "${song.name}"`);
   console.table(song.segments.map((s) => ({
     idx: s.idx, start: s.start.toFixed(2), end: s.end.toFixed(2),
     dur: (s.end - s.start).toFixed(2), chord: s.chord,
   })));
-  console.log(`Cadence: key timeline (${result.keys.length} segment(s) — more than one means a modulation was detected)`);
+  console.log(`Chordyne: key timeline (${result.keys.length} segment(s) — more than one means a modulation was detected)`);
   console.table(result.keys.map((k) => ({
     start: k.start.toFixed(2), end: k.end.toFixed(2), key: k.name,
   })));
-  console.log("Run copy(JSON.stringify(window.__cadence.state.song.segments)) to copy the full chord list.");
+  console.log("Run copy(JSON.stringify(window.__chordyne.state.song.segments)) to copy the full chord list.");
 }
 
 // exposed for debugging in the browser console
-window.__cadence = { state, engine };
+window.__chordyne = { state, engine };
 
 engine.onEnded = () => { set({ playing: false }); setPlayIcon(false); };
 

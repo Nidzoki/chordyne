@@ -1,4 +1,4 @@
-# Cadence
+# Chordyne
 
 Offline chord-karaoke practice tool. Drop in a song, get a chord chart —
 either a scannable grid ("Sheet") or a scrolling karaoke lane with a
@@ -22,12 +22,15 @@ for "essentia.js failed to load").
 
 ## Build + deploy to GitHub Pages
 
-```
-BASE=/cadence/ npm run build   # match your repo name
-```
+`.github/workflows/deploy.yml` builds and deploys automatically on every
+push to `master` (GitHub Actions, no `gh-pages` branch involved) — enable
+Pages on the repo with source set to "GitHub Actions" and pushes just work.
 
-Push the contents of `dist/` to a `gh-pages` branch (or point Pages at
-`dist/` via a GitHub Action) and enable Pages on that repo.
+To build locally instead:
+
+```
+BASE=/chordyne/ npm run build   # match your repo name
+```
 
 ## How it works
 
