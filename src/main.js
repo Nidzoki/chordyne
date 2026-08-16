@@ -105,6 +105,13 @@ const ctrl = {
     applyLoopMarks();
     renderLoopbandSeconds();
   },
+  setLoopRange(startIdx, endIdx) {
+    if (!state.song) return;
+    set({ loopStart: startIdx, loopEnd: endIdx, loopOn: true });
+    renderLoopButton();
+    applyLoopMarks();
+    renderLoopbandSeconds();
+  },
   setView(v) {
     set({ view: v });
     el.viewToggle.querySelectorAll("button").forEach((b) =>
@@ -156,7 +163,7 @@ function renderLoopbandSeconds() {
   renderLoopband(startSec, endSec);
 }
 
-initSheet(ctrl.seek, ctrl.editChord);
+initSheet(ctrl.seek, ctrl.editChord, ctrl.setLoopRange);
 initKaraoke(ctrl.seek);
 initTransport(ctrl);
 initTheme();

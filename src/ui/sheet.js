@@ -12,10 +12,54 @@ let cells = [];       // cell element per segment index
 let onSeek = null;    // (seconds) => void
 let onEditChord = null; // (idx, newChordName) => void — newChordName is in
                          // DISPLAY (transposed) terms; the caller un-transposes
+let onSetLoopRange = null; // (startIdx, endIdx) => void
 
 const EDIT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
 
-export function initSheet(seekFn, editFn) { onSeek = seekFn; onEditChord = editFn; }
+export function initSheet(seekFn, editFn, loopRangeFn) {
+  onSeek = seekFn; onEditChord = editFn; onSetLoopRange = loopRangeFn;
+}
+
+// Click a cell to jump (unchanged) — drag across cells to pick a loop
+// region instead. Distinguished by whether the pointer ever entered a
+// *different* cell between down and up: no movement = the existing jump
+// behavior, any movement = commit a loop range covering everything dragged
+// over. Mouse and touch both supported since this replaces the old
+// "loop always starts at segment 0" default, which had no touch story either.
+let dragStartIdx = null;
+let dragEndIdx = null;
+let dragActive = false;
+
+function previewLoop(a, b) {
+  const lo = Math.min(a, b), hi = Math.max(a, b);
+  cells.forEach((cell, idx) => {
+    if (cell) cell.classList.toggle("loop-preview", idx >= lo && idx <= hi);
+  });
+}
+function clearPreview() {
+  cells.forEach((cell) => cell && cell.classList.remove("loop-preview"));
+}
+function endDrag() {
+  if (!dragActive) return;
+  dragActive = false;
+  clearPreview();
+  if (dragStartIdx === null || dragEndIdx === null) return;
+  if (dragStartIdx === dragEndIdx) {
+    const seg = state.song && state.song.segments[dragStartIdx];
+    if (seg && onSeek) onSeek(seg.start + 0.001);
+  } else if (onSetLoopRange) {
+    onSetLoopRange(Math.min(dragStartIdx, dragEndIdx), Math.max(dragStartIdx, dragEndIdx));
+  }
+  dragStartIdx = dragEndIdx = null;
+}
+function cellIdxAtPoint(x, y) {
+  const el = document.elementFromPoint(x, y);
+  const cell = el && el.closest && el.closest(".cell");
+  return cell ? +cell.dataset.idx : null;
+}
+window.addEventListener("mouseup", endDrag);
+window.addEventListener("touchend", endDrag);
+window.addEventListener("touchcancel", endDrag);
 
 export function buildSheet(song) {
   sheetEl.innerHTML = "";
@@ -43,8 +87,32 @@ export function buildSheet(song) {
       + (seg.confident === false ? '<span class="uncertain-dot" title="Detector wasn\'t sure about this one"></span>' : "")
       + `<button class="edit-btn" type="button" aria-label="Edit chord" title="Edit chord">${EDIT_ICON}</button>`;
     const jump = () => onSeek && onSeek(seg.start + 0.001);
-    cell.addEventListener("click", jump);
     cell.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); jump(); } });
+
+    cell.addEventListener("mousedown", (e) => {
+      if (e.button !== 0 || cell.classList.contains("editing") || e.target.closest(".edit-btn")) return;
+      e.preventDefault(); // stop native text selection while dragging across cells
+      dragActive = true;
+      dragStartIdx = dragEndIdx = seg.idx;
+      previewLoop(dragStartIdx, dragEndIdx);
+    });
+    cell.addEventListener("mouseenter", () => {
+      if (!dragActive) return;
+      dragEndIdx = seg.idx;
+      previewLoop(dragStartIdx, dragEndIdx);
+    });
+    cell.addEventListener("touchstart", (e) => {
+      if (cell.classList.contains("editing") || e.target.closest(".edit-btn")) return;
+      dragActive = true;
+      dragStartIdx = dragEndIdx = seg.idx;
+      previewLoop(dragStartIdx, dragEndIdx);
+    }, { passive: true });
+    cell.addEventListener("touchmove", (e) => {
+      if (!dragActive) return;
+      const t = e.touches[0];
+      const idx = cellIdxAtPoint(t.clientX, t.clientY);
+      if (idx !== null) { dragEndIdx = idx; previewLoop(dragStartIdx, dragEndIdx); }
+    }, { passive: true });
     cell.querySelector(".edit-btn").addEventListener("click", (e) => {
       e.stopPropagation();
       startEdit(seg, cell);

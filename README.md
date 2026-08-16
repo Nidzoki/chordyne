@@ -136,8 +136,10 @@ These are deliberately left as the next build steps, not oversights:
 - **No section labels** (Intro/Verse/Chorus). Real section detection
   (self-similarity / novelty on the chromagram) is a reasonable v2; for
   now the grid is one flat list of chord changes.
-- **Loop region is fixed** to the first few chord segments when you hit
-  loop — there's no drag-to-select on the scrubber yet.
+- ~~Loop region is fixed to the first few chord segments.~~ **Resolved** —
+  drag across cells in the Sheet grid to pick any start/end range (mouse and
+  touch); a plain click still jumps playback there like before. The scrubber
+  itself still doesn't support drag-to-select, only the chord grid does.
 - **No persistence.** Re-uploading the same song re-runs detection from
   scratch; nothing is saved to IndexedDB/localStorage yet.
 - **Lyrics** are out of scope for this scaffold (see project plan) —
