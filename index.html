@@ -15,6 +15,7 @@
       <div class="now-playing">
         <span class="label" id="npLabel">No song loaded</span>
         <span class="title" id="npTitle">Upload an audio file to begin</span>
+        <span class="meta" id="npMeta"></span>
       </div>
       <div class="segmented" id="viewToggle" hidden>
         <button data-view="grid" class="sel">
@@ -93,13 +94,13 @@
 
         <div class="spacer"></div>
 
-        <div class="stepper" title="Transpose the chart">
+        <div class="stepper" title="Transpose the song and chart (tempo unaffected)">
           <span class="lbl">Pitch</span>
           <button id="pitchDown" aria-label="Transpose down">&minus;</button>
           <span class="val zero" id="pitchVal">0</span>
           <button id="pitchUp" aria-label="Transpose up">+</button>
         </div>
-        <div class="slider-group" title="Tempo">
+        <div class="slider-group" title="Change playback speed (pitch unaffected)">
           <span class="lbl">Tempo</span>
           <input type="range" id="tempo" min="50" max="150" value="100" step="5" aria-label="Tempo" />
           <span class="val" id="tempoVal">100%</span>

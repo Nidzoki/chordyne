@@ -102,6 +102,10 @@ header {
   overflow: hidden; text-overflow: ellipsis;
 }
 .now-playing .title .key { color: var(--accent); font-family: var(--mono); }
+.now-playing .meta {
+  font-size: 11px; font-weight: 600; color: var(--accent);
+  font-family: var(--mono); letter-spacing: 0.02em;
+}
 .hbtn {
   border: 1px solid var(--border); background: var(--panel); color: var(--text);
   height: 36px; padding: 0 14px; border-radius: 9px;
@@ -297,6 +301,25 @@ button:focus-visible, input:focus-visible, .cell:focus-visible, .ktok:focus-visi
   outline: 2px solid var(--accent); outline-offset: 2px;
 }
 
+/* ---------- responsive ---------- */
+
+/* wide desktop: more room, so use it instead of leaving it as side margin */
+@media (min-width: 1200px) {
+  .app { max-width: 1160px; }
+  .measures { grid-template-columns: repeat(5, 1fr); }
+  .cell .chord { font-size: 28px; }
+}
+
+/* tablet / small laptop */
+@media (max-width: 900px) {
+  .measures { grid-template-columns: repeat(3, 1fr); }
+  .now-playing .meta { display: none; }
+  header { padding: 14px 18px; gap: 12px; }
+  .sheet { padding: 8px 18px 18px; }
+  .transport { padding: 12px 18px 16px; }
+}
+
+/* phone (portrait) */
 @media (max-width: 620px) {
   .measures { grid-template-columns: repeat(2, 1fr); }
   .now-playing { display: none; }
@@ -305,7 +328,45 @@ button:focus-visible, input:focus-visible, .cell:focus-visible, .ktok:focus-visi
   .segmented button span, .hbtn span { display: none; }
   .ktok { font-size: 24px; }
   .ktok.cur { font-size: 44px; }
+  header { padding: 12px 14px; }
+  .sheet { padding: 6px 14px 16px; }
+  .transport { padding: 10px 14px 14px; gap: 10px; }
+  .drop-inner { padding: 36px 20px; }
 }
+
+/* small phone */
+@media (max-width: 380px) {
+  .measures { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .cell { padding: 10px 6px 8px; gap: 6px; }
+  .cell .chord { font-size: 20px; }
+  .brand h1 { font-size: 16px; }
+  .logo { width: 26px; height: 26px; font-size: 15px; }
+  .tbtn { width: 38px; height: 38px; }
+  .tbtn.play { width: 46px; height: 46px; }
+  .stepper, .slider-group { padding: 5px 8px; height: 38px; }
+  input[type=range] { width: 54px; }
+  .stepper .lbl, .slider-group .lbl { display: none; }
+  .ktok.cur { font-size: 36px; }
+  .drop-title { font-size: 17px; }
+  .drop-sub { font-size: 12px; }
+}
+
+/* short / landscape viewport (e.g. a phone propped up while playing) —
+   vertical space is the scarce resource here, not width */
+@media (max-height: 480px) and (orientation: landscape) {
+  header { padding: 8px 16px; }
+  .stage { padding: 10px; }
+  .drop-inner { padding: 20px 24px; }
+  .drop-title { margin: 10px 0 4px; }
+  .transport { padding: 8px 16px 10px; gap: 8px; }
+  .tbtn, .tbtn.play { height: 36px; width: 36px; }
+  .tbtn.play { width: 42px; height: 42px; }
+  .stepper, .slider-group { height: 34px; }
+  .ksection { top: 10px; }
+  .kbeats { bottom: 12px; }
+  .ktok.cur { font-size: 40px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sheet { scroll-behavior: auto; }
   .klane { will-change: auto; }

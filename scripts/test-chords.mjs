@@ -198,3 +198,17 @@ const ambiguousResult = await run("F vs Am ambiguous chroma, clear F bass (root-
 const ambiguousChord = chordAt(ambiguousResult, 2);
 console.log(`chord at t=2s: ${ambiguousChord}  (want "F" — bass note should break the F/Am tie)`);
 console.log(ambiguousChord === "F" ? "PASS" : `FAIL (got ${ambiguousChord})`);
+
+// User-reported bug on a real song: a chord change (F -> C) briefly reads as
+// some other chord right at the strum transition — often a sus4 sharing a
+// root with one side, since that's what the chroma mid-strum actually looks
+// like. That in-between chord isn't in the song and shouldn't survive as its
+// own segment; it should be absorbed into F or C.
+const fSus4Result = await run("F -> brief Fsus4 blend -> C (transient sandwich merge)", [
+  synthChord([174.61, 220.0, 261.63], 2, SR),     // F
+  synthChord([174.61, 233.08, 261.63], 0.7, SR),  // Fsus4 (F Bb C) — shares root with F
+  synthChord([261.63, 329.63, 392.0], 2, SR),     // C
+]);
+const hasSus4 = fSus4Result.segments.some((s) => s.chord.includes("sus4"));
+console.log(`sandwiched Fsus4 segment present: ${hasSus4}  (want false — absorbed into F)`);
+console.log(!hasSus4 ? "PASS" : "FAIL (Fsus4 segment survived)");

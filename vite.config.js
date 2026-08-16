@@ -4,7 +4,7 @@ import { defineConfig } from "vite";
 // e.g. https://<user>.github.io/cadence/  -> base: "/cadence/".
 // Override at build time: BASE=/myrepo/ npm run build
 export default defineConfig({
-  base: process.env.BASE || "/",
+  base: process.env.BASE || "/cadence/",
   build: {
     target: "es2020",
     outDir: "dist",

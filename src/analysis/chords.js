@@ -66,6 +66,23 @@ const FLATNESS_THRESHOLD = 0.4;   // spectral flatness (geometric/arithmetic mea
                                    // judged against. Classification itself uses raw
                                    // flatness as a continuous confidence weight
                                    // instead of this hard cutoff — see viterbiRun.
+const TRANSIENT_MAX_SEC = 1.0;    // seconds; fallback when there's no beat grid to scale
+                                   // against (frame-level mode). A segment shorter than
+                                   // this, sandwiched between two other real chords, and
+                                   // sharing its root with one of them (e.g. F -> Fsus4 ->
+                                   // C) is almost always the mid-strum blend of that
+                                   // transition caught as its own chord, not something the
+                                   // song actually plays — absorbed into whichever neighbor
+                                   // shares the root. First-pass heuristic, not validated
+                                   // against real audio yet.
+const TRANSIENT_MAX_BEATS = 1.5;  // in beat-sync mode, scale the same cutoff to the
+                                   // song's own tempo instead of a fixed 1.0s: a fast
+                                   // song's real chords can legitimately last under a
+                                   // second (an eighth-note change at 160+ BPM), where a
+                                   // fixed cutoff would eat them the same as it eats a
+                                   // slow ballad's genuine blend artifacts. Clamped below.
+const TRANSIENT_MAX_SEC_MIN = 0.4;
+const TRANSIENT_MAX_SEC_MAX = 1.5;
 const MIN_SEG = 0.6;              // seconds; shorter segments get merged away
 const SILENCE_RATIO = 0.12;       // frames quieter than this fraction of the
                                    // song's own MEDIAN energy -> "N.C.". Ratio-
@@ -291,6 +308,66 @@ function frameChroma(samples, start, win, bins, re, im, essentiaExtractor, sampl
   return { chroma, energy, flatness, bassChroma };
 }
 
+// Least-squares fit residual (Oudre/Fuentes/Grenier, "Chord Recognition by
+// Fitting Rescaled Chroma Vectors to Chord Templates", IEEE TASLP 2011):
+// find the scalar alpha that best fits the chroma's member bins to a flat
+// plateau, and score by how much is left unexplained (member deviation from
+// that plateau, plus all non-member energy) — averaged over all 12 bins so
+// template size doesn't bias the result (a bigger template isn't cheaper or
+// more expensive to fit purely from having more members).
+//
+// This exists alongside templateScore/the zero-sum dot product above, not
+// instead of it: the dot product is what picks the chord *root* (needs to
+// stay immune to broadband noise across very different templates, which is
+// what the zero-sum design earns — see v2 note up top) — this only
+// discriminates *quality* between templates that already share a root (see
+// refineQuality below), where the actual bug this fixes lives. On a real
+// dominant-7th probe, essentia's HPCP had the added 7th at roughly half the
+// magnitude of the root/3rd/5th — a flat dot product structurally punishes
+// that as "mostly absent", where this fit correctly reads it as "present,
+// just quieter", because unclaimed real energy counts against every
+// competing hypothesis whether or not the template includes it.
+function fitResidual(chroma, norm, members) {
+  const k = members.size;
+  let sum = 0;
+  for (const m of members) sum += chroma[m] / norm;
+  const alpha = k ? sum / k : 0;
+  let ss = 0;
+  for (let i = 0; i < 12; i++) {
+    const v = chroma[i] / norm;
+    ss += members.has(i) ? (v - alpha) ** 2 : v * v;
+  }
+  return ss / 12;
+}
+
+const QUALITY_REFINE_MARGIN = 0.93; // a same-root alternate quality must fit
+                                     // (fitResidual) at least ~7% better than
+                                     // the chosen one to override it — first-
+                                     // pass threshold, sits comfortably above
+                                     // the ~8% improvement measured on the
+                                     // real Bb7 regression case and well
+                                     // below where any false-positive guard
+                                     // case (plain triads, harmonic-rich
+                                     // included) comes close to firing.
+
+// Does a same-root richer/different quality fit this unit's chroma clearly
+// better than the chord Viterbi actually picked? Restricted to same root
+// deliberately — root selection already went through the noise-robust
+// zero-sum/Viterbi decode above; this only asks "was the *quality* label
+// right," the exact axis templateScore's flat dot product gets wrong on
+// real extension chords.
+function refineQuality(chroma, norm, chosenIdx) {
+  const root = TEMPLATES[chosenIdx].root;
+  let bestIdx = chosenIdx;
+  let bestResidual = fitResidual(chroma, norm, TEMPLATES[chosenIdx].members);
+  for (let t = 0; t < TEMPLATES.length; t++) {
+    if (t === chosenIdx || TEMPLATES[t].root !== root) continue;
+    const r = fitResidual(chroma, norm, TEMPLATES[t].members);
+    if (r < bestResidual * QUALITY_REFINE_MARGIN) { bestResidual = r; bestIdx = t; }
+  }
+  return bestIdx;
+}
+
 function templateScore(chroma, norm, keyBonus, t, rootPc) {
   const vec = TEMPLATES[t].vec;
   let dot = 0;
@@ -486,6 +563,9 @@ export async function detectChords(audioBuffer, onProgress, _trace) {
   // regression suite, which is exactly why those tests exercise the fallback
   // path and can't validate beat-sync directly; that needs a real recording).
   let beatTicks = null;
+  let bpm = null; // reported to the caller regardless of whether the beat
+                   // grid was dense enough to drive beat-sync classification
+                   // below — a tempo estimate is still useful on its own
   if (essentiaExtractor) {
     if (onProgress) onProgress(0.02, "Detecting rhythm…");
     await nextTick();
@@ -498,11 +578,12 @@ export async function detectChords(audioBuffer, onProgress, _trace) {
       // into a Web Worker, which is a bigger change than this one.
       const vec = essentiaExtractor.arrayToVector(samples);
       const rhythm = essentiaExtractor.RhythmExtractor2013(vec);
+      bpm = +rhythm.bpm.toFixed(1);
       const ticks = [];
       for (let i = 0; i < rhythm.ticks.size(); i++) ticks.push(rhythm.ticks.get(i));
       if (ticks.length >= 4) {
         beatTicks = ticks;
-        console.log(`Cadence: beat-synchronous mode, ${rhythm.bpm.toFixed(1)} BPM, ${ticks.length} beats`);
+        console.log(`Cadence: beat-synchronous mode, ${bpm} BPM, ${ticks.length} beats`);
       } else {
         console.log("Cadence: too few beats detected, using frame-level chord boundaries");
       }
@@ -594,7 +675,7 @@ export async function detectChords(audioBuffer, onProgress, _trace) {
   // arrays indexed consistently, so the same function serves both.
   const keyBonusOf = (f) => blockKeyBonus[Math.min(nBlocks - 1, Math.floor(f / blockFrames))];
 
-  let labels, boundaryTime, smoothWin, margins, altIdxArr;
+  let labels, boundaryTime, smoothWin, margins, altIdxArr, chromaOf, flatnessOf;
   if (beatTicks) {
     // aggregate frame-level chroma/energy/flatness into one observation per
     // beat — averaging across a whole beat is also a strong noise reducer on
@@ -650,6 +731,8 @@ export async function detectChords(audioBuffer, onProgress, _trace) {
     boundaryTime = (i) => beatTicks[Math.min(i, beatTicks.length - 1)];
     smoothWin = 3; // beats are already a coarse, well-smoothed unit — a heavy
                     // median window here would smear real beat-to-beat changes
+    chromaOf = (u) => beatChromas[u];
+    flatnessOf = (u) => beatFlatness[u];
   } else {
     labels = new Array(nFrames).fill(-1);
     let runStart = -1;
@@ -683,6 +766,8 @@ export async function detectChords(audioBuffer, onProgress, _trace) {
 
     boundaryTime = (i) => Math.min(i, nFrames) * frameDur;
     smoothWin = 9;
+    chromaOf = (u) => chromas[u];
+    flatnessOf = (u) => flatnesses[u];
 
     if (_trace) {
       for (let f = 0; f < nFrames; f++) {
@@ -717,8 +802,19 @@ export async function detectChords(audioBuffer, onProgress, _trace) {
   let cur = smoothed[0], startI = 0;
   for (let i = 1; i <= smoothed.length; i++) {
     if (i === smoothed.length || smoothed[i] !== cur) {
-      const chord = cur < 0 ? "N.C." : nameByIndex[cur];
       const centerU = startI + ((i - startI) >> 1);
+      // quality refinement (see refineQuality above) — same center unit the
+      // confidence margin already samples from, and skipped on a noisy/
+      // percussive center frame the same way key estimation skips one:
+      // asking "which quality fits better" off bad evidence isn't safer just
+      // because it's a different formula.
+      let refinedCur = cur;
+      if (cur >= 0 && flatnessOf(centerU) <= FLATNESS_THRESHOLD) {
+        const centerChroma = chromaOf(centerU);
+        let n = 0; for (const x of centerChroma) n += x * x;
+        refinedCur = refineQuality(centerChroma, Math.sqrt(n) || 1, cur);
+      }
+      const chord = cur < 0 ? "N.C." : nameByIndex[refinedCur];
       const margin = margins[centerU] ?? Infinity;
       const altIdx = altIdxArr[centerU] ?? -1;
       const confident = cur < 0 || margin >= CONFIDENCE_MARGIN;
@@ -748,6 +844,35 @@ export async function detectChords(audioBuffer, onProgress, _trace) {
     }
   }
 
+  // erase mid-transition blend artifacts: a short segment sandwiched between
+  // two other real (non-N.C., differently-named) chords, sharing its root
+  // with one of them, is the chroma mid-strum crossing from one chord to the
+  // other, not a chord the song contains. Absorb into whichever neighbor
+  // shares the root; if it shares neither (a genuinely different chord, just
+  // short-lived), leave it alone.
+  const transientMaxSec = beatTicks
+    ? Math.min(TRANSIENT_MAX_SEC_MAX, Math.max(TRANSIENT_MAX_SEC_MIN,
+        ((beatTicks[beatTicks.length - 1] - beatTicks[0]) / (beatTicks.length - 1)) * TRANSIENT_MAX_BEATS))
+    : TRANSIENT_MAX_SEC;
+  const rootOf = (chord) => chord.match(/^[A-G]#?/)?.[0];
+  for (let i = 1; i < merged.length - 1; i++) {
+    const s = merged[i], prev = merged[i - 1], next = merged[i + 1];
+    if (s.chord === "N.C." || prev.chord === "N.C." || next.chord === "N.C.") continue;
+    if (s.chord === prev.chord || s.chord === next.chord) continue;
+    if (s.end - s.start >= transientMaxSec) continue;
+    const sRoot = rootOf(s.chord);
+    if (sRoot === rootOf(prev.chord)) {
+      prev.end = s.end;
+      merged.splice(i, 1);
+    } else if (sRoot === rootOf(next.chord)) {
+      next.start = s.start;
+      merged.splice(i, 1);
+    } else {
+      continue;
+    }
+    i--;
+  }
+
   // A chord that shows up once for a couple of seconds while everything else
   // in the song repeats across dozens of segments is statistically more
   // likely a misdetection than a real one-off harmony choice — real songs
@@ -769,6 +894,7 @@ export async function detectChords(audioBuffer, onProgress, _trace) {
     duration: audioBuffer.duration,
     segments: merged,
     keys: keyTimeline,   // key estimate over time — watch for it tracking modulations
+    bpm,                 // null when essentia didn't load or RhythmExtractor2013 failed
   };
 }
 

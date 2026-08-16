@@ -19,9 +19,31 @@ const el = {
   fileInput: document.getElementById("fileInput"),
   npLabel: document.getElementById("npLabel"),
   npTitle: document.getElementById("npTitle"),
+  npMeta: document.getElementById("npMeta"),
 };
 
 const engine = new Engine();
+// brief visual cue while a tempo/pitch change is being recomputed (WSOLA
+// pass can take a couple of seconds on a full song) — playback keeps
+// running on the old buffer throughout, this is purely so the controls
+// don't look unresponsive
+const pitchValEl = document.getElementById("pitchVal");
+const tempoValEl = document.getElementById("tempoVal");
+engine.onRebuildStart = () => {
+  pitchValEl.style.opacity = tempoValEl.style.opacity = "0.5";
+  pitchValEl.dataset.real = pitchValEl.textContent;
+  tempoValEl.dataset.real = tempoValEl.textContent;
+};
+engine.onRebuildProgress = (p) => {
+  const pct = Math.round(p * 100) + "%";
+  pitchValEl.textContent = pct;
+  tempoValEl.textContent = pct;
+};
+engine.onRebuildEnd = () => {
+  pitchValEl.style.opacity = tempoValEl.style.opacity = "1";
+  pitchValEl.textContent = pitchValEl.dataset.real;
+  tempoValEl.textContent = tempoValEl.dataset.real;
+};
 
 // ---------- screen state ----------
 function showScreen(screen) {
@@ -63,15 +85,19 @@ const ctrl = {
   rewind() { ctrl.seek(state.time - 8); },
   forward() { ctrl.seek(state.time + 8); },
   setPitch(v) {
-    set({ pitch: Math.max(-6, Math.min(6, v)) });
+    const semis = Math.max(-6, Math.min(6, v));
+    set({ pitch: semis });
+    engine.setPitchRatio(2 ** (semis / 12));
     sheetTranspose();
     karaokeTranspose();
     renderPitch();
+    renderMeta();
   },
   setTempo(pct) {
-    engine.setRate(pct / 100);
+    engine.setTempoRatio(pct / 100);
     set({ tempoPct: pct });
     renderTempo();
+    renderMeta();
   },
   toggleLoop() {
     set({ loopOn: !state.loopOn });
@@ -104,6 +130,23 @@ const ctrl = {
     renderFrame();
   },
 };
+
+// dominant key = the single longest key segment, not just the first — a
+// song that modulates late (e.g. a step-up final chorus) shouldn't have its
+// whole-song label dominated by 4 bars at the very end. Transposed by the
+// current pitch setting so it stays consistent with the chart/audio.
+function renderMeta() {
+  if (!state.song) { el.npMeta.textContent = ""; return; }
+  const { keys, bpm } = state.song;
+  const parts = [];
+  if (keys && keys.length) {
+    const longest = keys.reduce((a, b) => (b.end - b.start > a.end - a.start ? b : a));
+    const keyName = transposeChord(longest.name, state.pitch);
+    parts.push(keys.length > 1 ? `${keyName} (+ modulations)` : keyName);
+  }
+  if (bpm) parts.push(`${Math.round(bpm * (state.tempoPct / 100))} BPM`);
+  el.npMeta.textContent = parts.join(" · ");
+}
 
 function renderLoopbandSeconds() {
   if (!state.song) return;
@@ -185,6 +228,8 @@ async function loadFile(file) {
     name: file.name.replace(/\.[^.]+$/, ""),
     duration: result.duration,
     segments: result.segments,
+    keys: result.keys,
+    bpm: result.bpm,
   };
   set({
     song, time: 0, playing: false, pitch: 0, tempoPct: 100,
@@ -199,6 +244,7 @@ async function loadFile(file) {
 
   el.npLabel.textContent = "Now practicing";
   el.npTitle.textContent = song.name;
+  renderMeta();
 
   showScreen("ready");
   renderFrame();

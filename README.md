@@ -86,22 +86,24 @@ suggested alternative when there is one.
 
 These are deliberately left as the next build steps, not oversights:
 
-- **essentia.js has not been confirmed working in an actual browser yet.**
-  It's verified end-to-end under plain Node (`npm run test:essentia`,
-  `npm run test:chords`) — real WASM init, real HPCP extraction, real
-  ChordsDetection call, all correct. But its `.es.js` build is Emscripten
-  glue, and Vite's bundling/asset pipeline could in principle handle its
-  WASM-loading path differently than Node did (see the `__dirname` patch in
-  `scripts/test-essentia.mjs` — that was Node-specific and shouldn't recur
-  in a browser, but hasn't been *observed* working in one). If the browser
-  console shows "essentia.js failed to load", detection still works via the
-  automatic fallback to the built-in extractor — just check what the actual
-  load error says and go from there.
-- **7th-chord quality can be slightly off with essentia's chroma.** A
-  regression test that expects "A#7" now reads "A#" (right root and
-  family, missing the 7th) — `COMPLEXITY_PENALTY` was tuned against the
-  built-in extractor's chroma characteristics and may need a small
-  adjustment now that essentia is the primary source.
+- ~~essentia.js has not been confirmed working in an actual browser yet.~~
+  **Resolved** — confirmed working live via the Vite dev server (browser
+  console logs "using essentia.js for chroma extraction", real songs
+  processed successfully). If the console ever shows "essentia.js failed to
+  load" on some other machine/browser, detection still works via the
+  automatic fallback to the built-in extractor.
+- ~~7th-chord quality can be slightly off with essentia's chroma.~~
+  **Resolved** — the flat-dot-product template score structurally punished
+  extension tones (a real 7th at essentia's-observed ~50% relative
+  magnitude scored *worse* than not having it at all). Fixed with a second
+  scoring pass, `refineQuality`/`fitResidual` in `chords.js`, based on
+  Oudre/Fuentes/Grenier's least-squares chroma-to-template fit (IEEE TASLP
+  2011): after Viterbi picks a chord's root, a same-root quality upgrade
+  (triad -> 7th/maj7/etc.) is only applied if it fits the chroma's actual
+  energy distribution meaningfully better, not just "have any energy there
+  at all." Root selection itself is untouched — still the zero-sum dot
+  product, which needs to stay broadband-noise-robust in a way this
+  refinement doesn't have to be.
 - **Beat sync snaps to the beat, not the bar.** Chords can still change on
   any beat, not just downbeats — real, but coarser, progress over unaligned
   frame boundaries. True downbeat/bar detection (essentia has algorithms
@@ -110,12 +112,18 @@ These are deliberately left as the next build steps, not oversights:
   frame-level fallback path right now, not beat-sync — extend it there
   first if beat-sync ever needs the same kind of frame-by-frame diagnosis
   the earlier bugs needed.
-- **Pitch shift of the audio itself.** Right now "Pitch" only transposes
-  the *displayed* chord names — the audio does not change key. Tempo
-  uses `playbackRate`, which also (slightly) shifts audio pitch as a
-  side effect. Real independent pitch/tempo needs a time-stretch engine
-  — SoundTouchJS or a phase-vocoder AudioWorklet is the natural next
-  dependency to wire into `src/audio/engine.js`.
+- ~~Pitch shift of the audio itself.~~ **Resolved** — `src/audio/stretch.js`
+  implements WSOLA time-stretching from scratch (no new dependency), composed
+  with `AudioBufferSourceNode.playbackRate` resampling in `engine.js` to give
+  independent tempo and pitch: tempo change re-renders the buffer at the new
+  duration and plays it back at rate 1 (pitch untouched); pitch change
+  stretches by the pitch ratio and plays at that same rate (duration change
+  cancels out, only the pitch shift survives). Validated against synthetic
+  sine/harmonic tones via FFT in `scripts/test-stretch.mjs` (`npm run
+  test:stretch`), not yet against a real recording. Recompute is debounced
+  (350ms after the last slider move) and takes a few seconds on a full song —
+  playback keeps running on the old buffer throughout, no dropout, just a
+  brief dimming of the Pitch/Tempo readouts while it catches up.
 - **Chord editing exists only in the Sheet view, not karaoke.** Click the
   pencil on any cell to fix it. Karaoke tokens show the same uncertainty dot
   but aren't editable yet — edit in Sheet, it updates both views.
